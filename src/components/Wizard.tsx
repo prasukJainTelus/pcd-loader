@@ -5,6 +5,10 @@ export default function Wizard({ manager }: { manager: Manager }) {
       <button className="addBtn" onClick={() => manager.loadPCDFile()}>
         Add PCD file
       </button>
+
+      <button className="addBtn" onClick={() => manager.switchFrame()}>
+        Switch Frame
+      </button>
     </div>
   );
 }

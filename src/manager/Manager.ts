@@ -3,7 +3,10 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { PCDLoader } from "three/examples/jsm/loaders/PCDLoader";
 
-const PCD_URLS = ["assets/pcd/ism_test_lioness.pcd", "assets/pcd/Zaghetto.pcd"];
+const PCD_URLS = {
+  frame1: "assets/pcd/ism_test_lioness.pcd",
+  frame2: "assets/pcd/Zaghetto.pcd",
+};
 
 class Manager {
   private scene: Scene;
@@ -20,7 +23,9 @@ class Manager {
   private selectedMaterial = new THREE.MeshBasicMaterial({
     color: 0xff0000,
   });
-  private pcd_counts: number;
+  private pcd_counts: Record<string, number> = {};
+  public frames: Record<string, THREE.Group> = {};
+  private activeFrame: "frame1" | "frame2" = "frame1";
   onLoaderUpdated = (loaderCount: number) => {};
 
   constructor(component: HTMLDivElement) {
@@ -35,9 +40,9 @@ class Manager {
 
     this.raycaster = this.initializeRaycaster();
     this.mouse = new THREE.Vector2();
-    this.pcd_counts = 0;
+    this.activeFrame = this.configureFrame() as "frame1" | "frame2";
   }
-  initailizeRenderer() {
+  private initailizeRenderer() {
     const renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
     this.container.innerHTML = "";
@@ -50,7 +55,7 @@ class Manager {
     return renderer;
   }
 
-  initializeRaycaster() {
+  private initializeRaycaster() {
     const raycaster = new THREE.Raycaster();
     this.pickableObjects = [];
     this.renderer.domElement.addEventListener(
@@ -62,6 +67,17 @@ class Manager {
     return raycaster;
   }
 
+  private configureFrame() {
+    this.frames = {
+      frame1: new THREE.Group(),
+      frame2: new THREE.Group(),
+    };
+    Object.entries(this.frames).forEach(([key, frame]) => (frame.name = key));
+    const activeFrame = "frame1";
+    this.scene.add(this.frames[activeFrame]);
+    return activeFrame;
+  }
+
   animate() {
     new Promise(() => {
       this.controls.update();
@@ -70,15 +86,18 @@ class Manager {
   }
 
   async loadPCDFile() {
+    if (!(this.activeFrame in this.pcd_counts)) {
+      this.pcd_counts[this.activeFrame] = 0;
+    }
     const pcdLoader = new PCDLoader();
     pcdLoader.load(
-      process.env.PUBLIC_URL + `${PCD_URLS[this.pcd_counts % 2]}`,
+      process.env.PUBLIC_URL + `${PCD_URLS[this.activeFrame]}`,
       (points: THREE.Points) => {
         this.onLoaderUpdated(0);
         points.geometry.center();
-        points.position.set(this.pcd_counts / 4, 0, 0);
-        points.name = `pcd${this.pcd_counts}`;
-        if (this.pcd_counts % 2 === 1) {
+        points.position.set(this.pcd_counts[this.activeFrame] / 4, 0, 0);
+        points.name = `pcd${this.pcd_counts[this.activeFrame]}`;
+        if (this.activeFrame === "frame2") {
           points.geometry.rotateX(Math.PI);
           points.geometry.scale(0.3, 0.3, 0.3);
         } else {
@@ -86,8 +105,8 @@ class Manager {
           points.geometry.rotateZ(Math.PI / 2);
           points.scale.set(0.001, 0.001, 0.001);
         }
-        this.pcd_counts += 1;
-        this.scene.add(points);
+        this.pcd_counts[this.activeFrame] += 1;
+        this.frames[this.activeFrame].add(points);
         this.pickableObjects = [...this.pickableObjects, points];
       },
       (xhr) => {
@@ -138,8 +157,18 @@ class Manager {
     }
   }
 
-  onWindowResize() {
+  private onWindowResize() {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+  }
+
+  public switchFrame() {
+    this.scene.scene.children.forEach((child) => {
+      if (child.name === this.activeFrame) {
+        this.scene.scene.remove(child);
+      }
+    });
+    this.activeFrame = this.activeFrame === "frame1" ? "frame2" : "frame1";
+    this.scene.add(this.frames[this.activeFrame]);
   }
 }
 
